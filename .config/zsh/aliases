@@ -1,0 +1,37 @@
+# eza -> ls
+if command -v eza &> /dev/null; then
+  alias ls='eza -alh --group-directories-first --icons=auto'
+  alias lt='eza -a --tree --level=2 --long --icons --git'
+fi
+
+# fuzzy find
+alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
+
+# zoxide -> cd
+if command -v zoxide &> /dev/null; then
+  alias cd="zd"
+  zd() {
+    if [ $# -eq 0 ]; then
+      builtin cd ~ && return
+    elif [ -d "$1" ]; then
+      builtin cd "$1"
+    else
+      z "$@" && printf "\U000F17A9 " && pwd || echo "Error: Directory not found"
+    fi
+  }
+fi
+
+# Directories
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+
+# clear
+alias c='clear'
+
+# npm
+alias i='npm i'
+alias id='npm i -D'
+alias t='npm test'
+alias s='npm start'
+

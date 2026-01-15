@@ -1,0 +1,11 @@
+theme = Catppuccin Mocha
+
+window-padding-x = 16
+window-padding-y = 16
+
+font-size = 16 
+font-family = "CaskaydiaCove Nerd Font"
+
+macos-titlebar-proxy-icon = hidden
+macos-titlebar-style = hidden
+

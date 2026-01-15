@@ -1,0 +1,41 @@
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
+fi
+
+if command -v starship &> /dev/null; then
+  eval "$(starship init zsh)"
+fi
+
+if command -v zoxide &> /dev/null; then
+  eval "$(zoxide init zsh)"
+fi
+
+if command -v try &> /dev/null; then
+  eval "$(try init ~/Work/tries)"
+fi
+
+if command -v fzf &> /dev/null; then
+  # Try different installation paths in order of likelihood
+  local fzf_locations=(
+    # Homebrew (macOS)
+    /opt/homebrew/opt/fzf/shell
+    /usr/local/opt/fzf/shell
+    # Linux package managers
+    /usr/share/fzf
+    /usr/share/doc/fzf/examples
+    # User installation
+    ~/.fzf/shell
+  )
+
+  for fzf_path in $fzf_locations; do
+    if [[ -f "$fzf_path/completion.zsh" ]]; then
+      source "$fzf_path/completion.zsh"
+      source "$fzf_path/key-bindings.zsh"
+      break
+    fi
+  done
+fi
+
+# for github commit verification
+export GPG_TTY=$(tty)
+

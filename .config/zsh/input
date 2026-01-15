@@ -1,0 +1,35 @@
+# Only apply in interactive shells
+[[ $- == *i* ]] || return
+
+# Case-insensitive completion
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+
+# Show completions immediately
+setopt auto_menu
+setopt complete_in_word
+setopt always_to_end
+
+# Don't match hidden files unless explicitly specified
+setopt glob_dots  # You'll need to handle this differently
+
+# History search with arrow keys
+autoload -U up-line-or-beginning-search
+autoload -U down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey "^[[A" up-line-or-beginning-search
+bindkey "^[[B" down-line-or-beginning-search
+
+# Colored completions
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+
+# Show file type indicators (like ls -F)
+setopt list_types
+
+# Add trailing slash for symlinked directories
+setopt mark_dirs
+
+# Enable completion system
+autoload -Uz compinit
+compinit
+

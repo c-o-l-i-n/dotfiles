@@ -1,0 +1,6 @@
+# apply other config files
+source ~/.config/zsh/shell
+source ~/.config/zsh/aliases
+source ~/.config/zsh/init
+source ~/.config/zsh/input
+

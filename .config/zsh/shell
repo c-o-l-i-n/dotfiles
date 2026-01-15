@@ -1,0 +1,26 @@
+# History control
+setopt APPEND_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+HISTSIZE=32768
+SAVEHIST="${HISTSIZE}"
+HISTFILE="${HOME}/.zsh_history"
+
+# Autocompletion
+autoload -Uz compinit
+if [ $(date +'%j') != $(stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null) ]; then
+  compinit
+else
+  compinit -C
+fi
+
+# Ensure command hashing is off for mise
+setopt NO_HASH_CMDS
+
+# add new line to starthip prompt, without adding new line on terminal start
+precmd() {
+  precmd() {
+    echo
+  }
+}
+
