@@ -57,6 +57,11 @@ return {
 
       -- Java (with plugin)
       java = { "prettier" },
+
+      -- Shell script
+      sh = { "shfmt" },
+      bash = { "shfmt" },
+      zsh = { "shfmt" },
     },
   },
 }

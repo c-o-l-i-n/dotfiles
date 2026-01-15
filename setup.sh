@@ -57,7 +57,7 @@ detect_os() {
 # Helper functions
 print_header() {
   echo -e "\n${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${CYAN}${BOLD}║  $1${RESET}"
+  printf "${CYAN}${BOLD}║  %-61s║${RESET}\n" "$1"
   echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
 }
 
@@ -177,6 +177,7 @@ install_packages() {
       cowsay
       eza
       fastfetch
+      fd
       ffmpeg
       fzf
       gh
@@ -187,6 +188,7 @@ install_packages() {
       mise
       neovim
       ripgrep
+      shfmt
       skhd
       starship
       stow
@@ -227,6 +229,7 @@ install_packages() {
       cowsay
       eza
       fastfetch
+      fd-find
       ffmpeg
       fzf
       gh
@@ -235,6 +238,7 @@ install_packages() {
       imagemagick
       neovim
       ripgrep
+      shfmt
       stow
       zoxide
     )
@@ -272,6 +276,7 @@ install_packages() {
       cowsay
       eza
       fastfetch
+      fd
       ffmpeg
       fzf
       github-cli
@@ -281,6 +286,7 @@ install_packages() {
       lazygit
       neovim
       ripgrep
+      shfmt
       starship
       stow
       zoxide
@@ -333,7 +339,7 @@ setup_dotfiles() {
   stow --restow .
 
   print_step "Loading shell configuration..."
-  source ~/.zshrc
+  (source ~/.zshrc) 2>/dev/null || print_warning "Some shell config couldn't be loaded in script context"
 
   print_success "Dotfiles configured"
 }
@@ -469,12 +475,43 @@ setup_simplebar_server() {
 
   print_success "simple-bar-server configured"
 
-  # Check if pm2 startup is configured
-  if pm2 startup | grep -q "already"; then
+  # Configure pm2 startup automatically
+  print_step "Checking pm2 startup configuration..."
+
+  # Check if pm2 startup is already configured by looking for the plist file
+  local pm2_plist="$HOME/Library/LaunchAgents/pm2.$(whoami).plist"
+
+  if [[ -f "$pm2_plist" ]]; then
     print_success "pm2 startup already configured"
   else
-    print_warning "pm2 startup needs to be configured"
-    add_manual_step "Run the command provided by: pm2 startup"
+    # Need to run pm2 startup command
+    local startup_cmd=$(pm2 startup 2>&1 | grep -E "sudo env PATH" | head -1)
+
+    if [[ -n "$startup_cmd" ]]; then
+      echo ""
+      echo -e "${YELLOW}${BOLD}pm2 needs to be configured to start on boot.${RESET}"
+      echo -e "${YELLOW}This requires running a command with sudo privileges.${RESET}"
+      echo ""
+      echo -e "${BLUE}The command will:${RESET}"
+      echo -e "  • Configure pm2 to automatically start simple-bar-server on login"
+      echo -e "  • Create necessary system files for startup management"
+      echo ""
+      echo -ne "${BOLD}Would you like to run this command now? [y/N]: ${RESET}"
+      read -r response
+
+      if [[ "$response" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${CYAN}Running pm2 startup command...${RESET}"
+        echo -e "${CYAN}(You'll be prompted for your password to allow pm2 system configuration)${RESET}"
+        echo ""
+        eval "$startup_cmd"
+        print_success "pm2 startup configured"
+      else
+        print_warning "Skipping pm2 startup configuration"
+        add_manual_step "Configure pm2 to start on boot by running: pm2 startup
+    Then run the sudo command it provides"
+      fi
+    fi
   fi
 
   cd ~
@@ -491,8 +528,19 @@ setup_yabai() {
 
   print_header "Yabai Configuration"
 
-  print_warning "Yabai requires partial SIP disable for advanced features"
-  add_manual_step "Follow SIP disable instructions: https://github.com/koekeishiya/yabai/wiki/Disabling-System-Integrity-Protection"
+  # Check if SIP is partially disabled
+  local sip_status=$(csrutil status 2>/dev/null)
+
+  if echo "$sip_status" | grep -q "System Integrity Protection status: disabled"; then
+    print_success "SIP is fully disabled (yabai features will work)"
+  elif echo "$sip_status" | grep -q "Filesystem Protections: disabled" &&
+    echo "$sip_status" | grep -q "Debugging Restrictions: disabled" &&
+    echo "$sip_status" | grep -q "NVRAM Protections: disabled"; then
+    print_success "SIP is partially disabled for yabai (correct configuration)"
+  else
+    print_warning "SIP needs to be partially disabled for advanced yabai features"
+    add_manual_step "Partially disable SIP for yabai features: https://github.com/koekeishiya/yabai/wiki/Disabling-System-Integrity-Protection"
+  fi
 }
 
 # ============================================================================
@@ -609,7 +657,7 @@ finalize_setup() {
   print_header "Finalizing Setup"
 
   print_step "Reloading shell configuration..."
-  source ~/.zshrc
+  (source ~/.zshrc) 2>/dev/null || print_warning "Some shell config couldn't be loaded in script context"
 
   print_success "Shell configuration updated and loaded"
 }
@@ -641,17 +689,19 @@ main() {
 
   if [[ ${#MANUAL_STEPS[@]} -gt 0 ]]; then
     echo -e "${YELLOW}${BOLD}Manual Steps Required:${RESET}\n"
-    for i in "${!MANUAL_STEPS[@]}"; do
-      echo -e "${MAGENTA}$((i + 1)).${RESET} ${MANUAL_STEPS[$i]}\n"
+    local i=1
+    for step in "${MANUAL_STEPS[@]}"; do
+      echo -e "${MAGENTA}${i}.${RESET} ${step}\n"
+      ((i++))
     done
   else
     print_success "No manual steps required!"
+    echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
+    printf "${CYAN}${BOLD}║  %-61s║${RESET}\n" "Your system is ready!"
+    echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
   fi
-
-  echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${CYAN}${BOLD}║  Your system is ready!                                        ║${RESET}"
-  echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
 }
 
 # Run main function
 main
+
