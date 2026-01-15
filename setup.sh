@@ -57,7 +57,7 @@ detect_os() {
 # Helper functions
 print_header() {
   echo -e "\n${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
-  printf "${CYAN}${BOLD}║  %-61s║${RESET}\n" "$1"
+  printf "${CYAN}${BOLD}║  %-62s║${RESET}\n" "$1"
   echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
 }
 
@@ -685,7 +685,7 @@ main() {
   # Summary
   # ============================================================================
 
-  print_header "Setup Complete! 🎉"
+  print_header "Setup Complete!"
 
   if [[ ${#MANUAL_STEPS[@]} -gt 0 ]]; then
     echo -e "${YELLOW}${BOLD}Manual Steps Required:${RESET}\n"
@@ -694,14 +694,8 @@ main() {
       echo -e "${MAGENTA}${i}.${RESET} ${step}\n"
       ((i++))
     done
-  else
-    print_success "No manual steps required!"
-    echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
-    printf "${CYAN}${BOLD}║  %-61s║${RESET}\n" "Your system is ready!"
-    echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
   fi
 }
 
 # Run main function
 main
-
