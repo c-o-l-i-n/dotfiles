@@ -470,7 +470,7 @@ setup_simplebar_server() {
 
   print_step "Starting simple-bar-server..."
   pm2 delete simple-bar-server 2>/dev/null || true
-  pm2 start npm --name "simple-bar-server" -- start
+  pm2 startOrRestart ecosystem.config.cjs
   pm2 save
 
   print_success "simple-bar-server configured"
