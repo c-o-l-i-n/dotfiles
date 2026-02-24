@@ -39,3 +39,6 @@ fi
 # for github commit verification
 export GPG_TTY=$(tty)
 
+# for claude code
+export PATH="$HOME/.local/bin:$PATH"
+
