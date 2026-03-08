@@ -482,16 +482,7 @@ setup_simplebar_server() {
   local pm2_plist="$HOME/Library/LaunchAgents/pm2.$(whoami).plist"
 
   if [[ -f "$pm2_plist" ]]; then
-    print_success "pm2 startup plist already exists"
-
-    # Verify the plist is loaded
-    if launchctl list | grep -q "pm2.$(whoami)"; then
-      print_success "pm2 startup service is loaded"
-    else
-      print_step "Loading pm2 startup service..."
-      launchctl load "$pm2_plist"
-      print_success "pm2 startup service loaded"
-    fi
+    print_success "pm2 startup already configured"
   else
     # Need to run pm2 startup command
     local startup_cmd=$(pm2 startup 2>&1 | grep -E "sudo env PATH" | head -1)
@@ -514,14 +505,7 @@ setup_simplebar_server() {
         echo -e "${CYAN}(You'll be prompted for your password to allow pm2 system configuration)${RESET}"
         echo ""
         eval "$startup_cmd"
-
-        # Verify the plist was created and load it
-        if [[ -f "$pm2_plist" ]]; then
-          launchctl load "$pm2_plist"
-          print_success "pm2 startup configured and loaded"
-        else
-          print_warning "pm2 startup plist not found after configuration"
-        fi
+        print_success "pm2 startup configured"
       else
         print_warning "Skipping pm2 startup configuration"
         add_manual_step "Configure pm2 to start on boot by running: pm2 startup
