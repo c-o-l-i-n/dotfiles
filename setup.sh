@@ -203,6 +203,16 @@ install_packages() {
       localsend
     )
 
+    # Run Homebrew non-interactively so it doesn't pause for "Do you want to
+    # proceed with the installation? [Y/n]" or other confirmation prompts.
+    export HOMEBREW_NO_ASK=1
+    export HOMEBREW_NO_AUTO_UPDATE=1
+    export HOMEBREW_NO_ENV_HINTS=1
+
+    # borders is distributed via the FelixKratz tap
+    print_step "Tapping FelixKratz/formulae (required for borders)..."
+    brew tap FelixKratz/formulae
+
     print_step "Installing Homebrew packages..."
     for package in "${brew_packages[@]}"; do
       if brew list "$package" &>/dev/null; then
