@@ -481,9 +481,7 @@ setup_simplebar_server() {
   # Check if pm2 startup is already configured by looking for the plist file
   local pm2_plist="$HOME/Library/LaunchAgents/pm2.$(whoami).plist"
 
-  if [[ -f "$pm2_plist" ]]; then
-    print_success "pm2 startup already configured"
-  else
+  if [[ ! -f "$pm2_plist" ]]; then
     # Need to run pm2 startup command
     local startup_cmd=$(pm2 startup 2>&1 | grep -E "sudo env PATH" | head -1)
 
@@ -512,6 +510,31 @@ setup_simplebar_server() {
     Then run the sudo command it provides"
       fi
     fi
+  else
+    print_success "pm2 startup already configured"
+  fi
+
+  # Patch the plist to use the mise 'lts' symlink for Node instead of a
+  # hard-coded version number. This ensures pm2 keeps working after upgrading
+  # Node LTS (e.g. node/24.12.0 → node/lts).
+  if [[ -f "$pm2_plist" ]]; then
+    print_step "Patching pm2 plist to use Node LTS symlink..."
+    local mise_node_dir="$HOME/.local/share/mise/installs/node"
+
+    # Replace any hard-coded node version (e.g. /node/24.12.0/) with /node/lts/
+    # Uses an in-place sed substitution; the pattern matches a version-like string
+    # (digits, dots) sitting between /node/ and the next path component.
+    if sed -i '' "s|${mise_node_dir}/[0-9][^/]*/|${mise_node_dir}/lts/|g" "$pm2_plist"; then
+      print_success "pm2 plist patched to use Node LTS symlink"
+    else
+      print_warning "Could not patch pm2 plist — you may need to update it manually"
+      add_manual_step "Edit $pm2_plist and replace hard-coded node version paths (e.g. /node/24.12.0/) with /node/lts/"
+    fi
+
+    # Reload the LaunchAgent so the change takes effect immediately
+    launchctl unload "$pm2_plist" 2>/dev/null || true
+    launchctl load "$pm2_plist"
+    print_success "LaunchAgent reloaded"
   fi
 
   cd ~
@@ -704,3 +727,4 @@ main() {
 
 # Run main function
 main
+
