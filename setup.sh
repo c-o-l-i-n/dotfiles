@@ -192,7 +192,7 @@ install_packages() {
       asmvik/formulae/skhd
       starship
       stow
-      yabai
+      asmvik/formulae/yabai
       zoxide
     )
 
@@ -213,6 +213,7 @@ install_packages() {
     print_step "Tapping required formulae..."
     brew tap FelixKratz/formulae
     brew tap asmvik/formulae
+    brew trust asmvik/formulae
 
     print_step "Installing Homebrew packages..."
     for package in "${brew_packages[@]}"; do
@@ -578,6 +579,44 @@ setup_yabai() {
 }
 
 # ============================================================================
+# Start Window Management Services (macOS only)
+# ============================================================================
+
+start_window_management_services() {
+  if [[ "$OS" != "macos" ]]; then
+    return
+  fi
+
+  print_header "Window Management Services (yabai + skhd)"
+
+  print_step "Starting yabai service..."
+  yabai --start-service 2>/dev/null || true
+
+  print_step "Starting skhd service..."
+  skhd --start-service 2>/dev/null || true
+
+  echo ""
+  echo -e "${YELLOW}${BOLD}Action Required: Accessibility Permissions${RESET}"
+  echo -e "${YELLOW}yabai and skhd need Accessibility access to manage windows and hotkeys.${RESET}"
+  echo ""
+  echo -e "${BLUE}Steps:${RESET}"
+  echo -e "  1. Open ${BOLD}System Settings > Privacy & Security > Accessibility${RESET}"
+  echo -e "  2. Enable both ${BOLD}yabai${RESET} and ${BOLD}skhd${RESET}"
+  echo -e "  3. Press ${BOLD}Enter${RESET} to restart the services"
+  echo ""
+  read -r "?Press Enter after granting Accessibility permissions... "
+  echo ""
+
+  print_step "Restarting yabai..."
+  yabai --restart-service 2>/dev/null || true
+
+  print_step "Restarting skhd..."
+  skhd --restart-service 2>/dev/null || true
+
+  print_success "yabai and skhd services running"
+}
+
+# ============================================================================
 # Install Banana Cursor
 # ============================================================================
 
@@ -712,6 +751,7 @@ main() {
   setup_nodejs
   setup_simplebar_server
   setup_yabai
+  start_window_management_services
   install_banana_cursor
   finalize_setup
 

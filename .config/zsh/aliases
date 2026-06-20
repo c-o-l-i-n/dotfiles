@@ -29,6 +29,9 @@ alias ....='cd ../../..'
 # clear
 alias c='clear'
 
+# claude code
+alias cc='claude'
+
 # npm
 alias i='npm i'
 alias id='npm i -D'
