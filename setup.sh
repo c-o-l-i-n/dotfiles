@@ -189,7 +189,7 @@ install_packages() {
       neovim
       ripgrep
       shfmt
-      skhd
+      asmvik/formulae/skhd
       starship
       stow
       yabai
@@ -209,9 +209,10 @@ install_packages() {
     export HOMEBREW_NO_AUTO_UPDATE=1
     export HOMEBREW_NO_ENV_HINTS=1
 
-    # borders is distributed via the FelixKratz tap
-    print_step "Tapping FelixKratz/formulae (required for borders)..."
+    # borders is distributed via the FelixKratz tap; skhd via asmvik/formulae
+    print_step "Tapping required formulae..."
     brew tap FelixKratz/formulae
+    brew tap asmvik/formulae
 
     print_step "Installing Homebrew packages..."
     for package in "${brew_packages[@]}"; do
