@@ -102,7 +102,9 @@
     "youtubeMusicWidget": false,
     "musicWidget": true,
     "mpdWidget": false,
-    "browserTrackWidget": false
+    "browserTrackWidget": false,
+    "notificationsWidget": false,
+    "nextMeetingWidget": false
   },
   "githubWidgetOptions": {
     "refreshFrequency": 600000,
@@ -268,6 +270,19 @@
     "showOnDisplay": "",
     "showIcon": true,
     "showSpecter": true
+  },
+  "notificationsWidgetOptions": {
+    "refreshFrequency": 10000,
+    "showOnDisplay": "",
+    "excludedApps": ""
+  },
+  "nextMeetingWidgetOptions": {
+    "refreshFrequency": 60000,
+    "showOnDisplay": "",
+    "showJoinButton": true,
+    "showTimeOnly": false,
+    "icalBuddyPath": "",
+    "lookAheadHours": 12
   },
   "userWidgets": {
     "userWidgetsList": {}
