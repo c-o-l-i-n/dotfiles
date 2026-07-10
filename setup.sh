@@ -3,9 +3,9 @@
 set -e
 
 # ============================================================================
-# Cross-Platform Dotfiles Setup Script
+# macOS Dotfiles Setup Script
 # ============================================================================
-# This script automates system configuration for macOS, Ubuntu, and Arch
+# This script automates system configuration for macOS
 # Safe to run multiple times (idempotent)
 # Requires: zsh
 # ============================================================================
@@ -29,30 +29,6 @@ RESET='\033[0m'
 
 # Manual steps tracking
 MANUAL_STEPS=()
-
-# Detect OS
-detect_os() {
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    OS="macos"
-  elif [[ -f /etc/os-release ]]; then
-    . /etc/os-release
-    case "$ID" in
-    ubuntu | debian)
-      OS="ubuntu"
-      ;;
-    arch | manjaro)
-      OS="arch"
-      ;;
-    *)
-      echo "Unsupported Linux distribution: $ID"
-      exit 1
-      ;;
-    esac
-  else
-    echo "Unable to detect operating system"
-    exit 1
-  fi
-}
 
 # Helper functions
 print_header() {
@@ -86,79 +62,32 @@ command_exists() {
 }
 
 # ============================================================================
-# Detect Operating System
+# Verify Operating System
 # ============================================================================
 
-detect_os
-print_header "Detected OS: ${OS:u}"
+check_os() {
+  if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo "Error: This script only supports macOS"
+    exit 1
+  fi
+}
+
+check_os
 
 # ============================================================================
 # Package Manager Setup
 # ============================================================================
 
 install_package_manager() {
-  case "$OS" in
-  macos)
-    print_header "Homebrew Installation"
-    if command_exists brew; then
-      print_success "Homebrew already installed"
-    else
-      print_step "Installing Homebrew..."
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-      eval "$(/opt/homebrew/bin/brew shellenv)"
-      print_success "Homebrew installed successfully"
-    fi
-    ;;
-  ubuntu)
-    print_header "Package Manager Setup"
-
-    # Install zsh if not present
-    if ! command_exists zsh; then
-      print_step "Installing zsh..."
-      sudo apt update
-      sudo apt install -y zsh
-      print_success "zsh installed"
-    else
-      print_success "zsh already installed"
-    fi
-
-    # Set zsh as default shell if not already
-    if [[ "$SHELL" != *"zsh"* ]]; then
-      print_step "Setting zsh as default shell..."
-      chsh -s $(which zsh)
-      print_warning "Default shell changed to zsh. Please log out and log back in for this to take effect."
-      add_manual_step "Log out and log back in to use zsh as your default shell"
-    fi
-
-    print_step "Updating apt repositories..."
-    sudo apt update
-    print_success "Package manager updated"
-    ;;
-  arch)
-    print_header "Package Manager Setup"
-
-    # Install zsh if not present
-    if ! command_exists zsh; then
-      print_step "Installing zsh..."
-      sudo pacman -Sy --noconfirm zsh
-      print_success "zsh installed"
-    else
-      print_success "zsh already installed"
-    fi
-
-    # Set zsh as default shell if not already
-    if [[ "$SHELL" != *"zsh"* ]]; then
-      print_step "Setting zsh as default shell..."
-      chsh -s $(which zsh)
-      print_warning "Default shell changed to zsh. Please log out and log back in for this to take effect."
-      add_manual_step "Log out and log back in to use zsh as your default shell"
-    fi
-
-    print_step "Updating pacman repositories..."
-    sudo pacman -Sy
-    print_success "Package manager updated"
-    ;;
-  esac
+  print_header "Homebrew Installation"
+  if command_exists brew; then
+    print_success "Homebrew already installed"
+  else
+    print_step "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+    print_success "Homebrew installed successfully"
+  fi
 }
 
 # ============================================================================
@@ -168,161 +97,68 @@ install_package_manager() {
 install_packages() {
   print_header "Installing Packages"
 
-  case "$OS" in
-  macos)
-    local brew_packages=(
-      borders
-      btop
-      cmatrix
-      cowsay
-      eza
-      fastfetch
-      fd
-      ffmpeg
-      fzf
-      gh
-      git
-      gnupg
-      imagemagick
-      lazygit
-      mise
-      neovim
-      ripgrep
-      shfmt
-      asmvik/formulae/skhd
-      starship
-      stow
-      asmvik/formulae/yabai
-      zoxide
-    )
+  local brew_packages=(
+    borders
+    btop
+    cmatrix
+    cowsay
+    eza
+    fastfetch
+    fd
+    ffmpeg
+    fzf
+    gh
+    git
+    gnupg
+    imagemagick
+    lazygit
+    mise
+    neovim
+    ripgrep
+    shfmt
+    asmvik/formulae/skhd
+    starship
+    stow
+    asmvik/formulae/yabai
+    zoxide
+  )
 
-    local brew_casks=(
-      font-caskaydia-cove-nerd-font
-      font-sf-pro
-      ghostty
-      localsend
-    )
+  local brew_casks=(
+    font-caskaydia-cove-nerd-font
+    font-sf-pro
+    ghostty
+    localsend
+  )
 
-    # Run Homebrew non-interactively so it doesn't pause for "Do you want to
-    # proceed with the installation? [Y/n]" or other confirmation prompts.
-    export HOMEBREW_NO_ASK=1
-    export HOMEBREW_NO_AUTO_UPDATE=1
-    export HOMEBREW_NO_ENV_HINTS=1
+  # Run Homebrew non-interactively so it doesn't pause for "Do you want to
+  # proceed with the installation? [Y/n]" or other confirmation prompts.
+  export HOMEBREW_NO_ASK=1
+  export HOMEBREW_NO_AUTO_UPDATE=1
+  export HOMEBREW_NO_ENV_HINTS=1
 
-    # borders is distributed via the FelixKratz tap; skhd via asmvik/formulae
-    print_step "Tapping required formulae..."
-    brew tap FelixKratz/formulae
-    brew tap asmvik/formulae
-    brew trust asmvik/formulae
+  # borders is distributed via the FelixKratz tap; skhd via asmvik/formulae
+  print_step "Tapping required formulae..."
+  brew tap FelixKratz/formulae
+  brew tap asmvik/formulae
 
-    print_step "Installing Homebrew packages..."
-    for package in "${brew_packages[@]}"; do
-      if brew list "$package" &>/dev/null; then
-        echo "  → $package already installed"
-      else
-        brew install "$package"
-      fi
-    done
-
-    print_step "Installing Homebrew casks..."
-    for cask in "${brew_casks[@]}"; do
-      if brew list --cask "$cask" &>/dev/null; then
-        echo "  → $cask already installed"
-      else
-        brew install --cask "$cask"
-      fi
-    done
-    ;;
-
-  ubuntu)
-    local apt_packages=(
-      btop
-      cmatrix
-      cowsay
-      eza
-      fastfetch
-      fd-find
-      ffmpeg
-      fzf
-      gh
-      git
-      gnupg
-      imagemagick
-      neovim
-      ripgrep
-      shfmt
-      stow
-      zoxide
-    )
-
-    print_step "Installing apt packages..."
-    sudo apt install -y "${apt_packages[@]}"
-
-    # Install mise (not in standard repos)
-    if ! command_exists mise; then
-      print_step "Installing mise..."
-      curl https://mise.run | sh
-      echo 'eval "$(~/.local/bin/mise activate zsh)"' >>~/.zshrc
+  print_step "Installing Homebrew packages..."
+  for package in "${brew_packages[@]}"; do
+    local pkg_name="${package##*/}"
+    if brew list "$pkg_name" &>/dev/null; then
+      echo "  → $package already installed"
+    else
+      brew install "$package"
     fi
+  done
 
-    # Install starship (not in standard repos)
-    if ! command_exists starship; then
-      print_step "Installing starship..."
-      curl -sS https://starship.rs/install.sh | sh -s -- -y
+  print_step "Installing Homebrew casks..."
+  for cask in "${brew_casks[@]}"; do
+    if brew list --cask "$cask" &>/dev/null; then
+      echo "  → $cask already installed"
+    else
+      brew install --cask "$cask"
     fi
-
-    # Install lazygit (not in standard repos)
-    if ! command_exists lazygit; then
-      print_step "Installing lazygit..."
-      LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
-      curl -Lo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
-      tar xf /tmp/lazygit.tar.gz -C /tmp lazygit
-      sudo install /tmp/lazygit /usr/local/bin
-    fi
-    ;;
-
-  arch)
-    local pacman_packages=(
-      btop
-      cmatrix
-      cowsay
-      eza
-      fastfetch
-      fd
-      ffmpeg
-      fzf
-      github-cli
-      git
-      gnupg
-      imagemagick
-      lazygit
-      neovim
-      ripgrep
-      shfmt
-      starship
-      stow
-      zoxide
-    )
-
-    print_step "Installing pacman packages..."
-    sudo pacman -S --needed --noconfirm "${pacman_packages[@]}"
-
-    # Install mise from AUR if available
-    if ! command_exists mise; then
-      if command_exists yay; then
-        print_step "Installing mise from AUR..."
-        yay -S --noconfirm mise-bin
-      elif command_exists paru; then
-        print_step "Installing mise from AUR..."
-        paru -S --noconfirm mise-bin
-      else
-        print_step "Installing mise..."
-        curl https://mise.run | sh
-        echo 'eval "$(~/.local/bin/mise activate zsh)"' >>~/.zshrc
-      fi
-    fi
-    ;;
-  esac
+  done
 
   print_success "All packages installed"
 }
@@ -350,21 +186,14 @@ setup_dotfiles() {
   print_step "Stowing dotfiles..."
   stow --restow .
 
-  print_step "Loading shell configuration..."
-  (source ~/.zshrc) 2>/dev/null || print_warning "Some shell config couldn't be loaded in script context"
-
   print_success "Dotfiles configured"
 }
 
 # ============================================================================
-# Apply Wallpaper (macOS only)
+# Apply Wallpaper
 # ============================================================================
 
 apply_wallpaper() {
-  if [[ "$OS" != "macos" ]]; then
-    return
-  fi
-
   print_header "Applying Wallpaper"
 
   local wallpaper_path="$HOME/dotfiles/wallpapers/eclipse.jpg"
@@ -379,14 +208,10 @@ apply_wallpaper() {
 }
 
 # ============================================================================
-# Install Übersicht and simple-bar (macOS only)
+# Install Übersicht and simple-bar
 # ============================================================================
 
 setup_uebersicht() {
-  if [[ "$OS" != "macos" ]]; then
-    return
-  fi
-
   print_header "Übersicht Setup"
 
   if [[ -d "/Applications/Übersicht.app" ]]; then
@@ -448,14 +273,10 @@ setup_nodejs() {
 }
 
 # ============================================================================
-# Install simple-bar-server (macOS only)
+# Install simple-bar-server
 # ============================================================================
 
 setup_simplebar_server() {
-  if [[ "$OS" != "macos" ]]; then
-    return
-  fi
-
   print_step "Setting up simple-bar-server..."
 
   local server_dir="$HOME/code/simple-bar-server"
@@ -553,14 +374,10 @@ setup_simplebar_server() {
 }
 
 # ============================================================================
-# Yabai Configuration (macOS only)
+# Yabai Configuration
 # ============================================================================
 
 setup_yabai() {
-  if [[ "$OS" != "macos" ]]; then
-    return
-  fi
-
   print_header "Yabai Configuration"
 
   # Check if SIP is partially disabled
@@ -576,17 +393,29 @@ setup_yabai() {
     print_warning "SIP needs to be partially disabled for advanced yabai features"
     add_manual_step "Partially disable SIP for yabai features: https://github.com/koekeishiya/yabai/wiki/Disabling-System-Integrity-Protection"
   fi
+
+  # Configure passwordless sudo for yabai scripting addition.
+  # The sha256 hash is tied to the current yabai binary, so re-running after
+  # a yabai upgrade will update the entry automatically.
+  print_step "Configuring yabai sudoers entry..."
+  local yabai_path=$(which yabai)
+  local yabai_sha=$(shasum -a 256 "$yabai_path" | cut -d " " -f 1)
+  local sudoers_entry="$(whoami) ALL=(root) NOPASSWD: sha256:${yabai_sha} ${yabai_path} --load-sa"
+  local sudoers_file="/private/etc/sudoers.d/yabai"
+
+  if sudo grep -qF "$sudoers_entry" "$sudoers_file" 2>/dev/null; then
+    print_success "yabai sudoers entry already up to date"
+  else
+    echo "$sudoers_entry" | sudo tee "$sudoers_file" >/dev/null
+    print_success "yabai sudoers entry configured"
+  fi
 }
 
 # ============================================================================
-# Start Window Management Services (macOS only)
+# Start Window Management Services (yabai + skhd)
 # ============================================================================
 
 start_window_management_services() {
-  if [[ "$OS" != "macos" ]]; then
-    return
-  fi
-
   print_header "Window Management Services (yabai + skhd)"
 
   print_step "Starting yabai service..."
@@ -623,103 +452,45 @@ start_window_management_services() {
 install_banana_cursor() {
   print_header "Banana Cursor Setup"
 
-  case "$OS" in
-  macos)
-    local mousecape_app="/Applications/Mousecape.app"
-    local mousecape_capes_dir="$HOME/Library/Application Support/Mousecape/capes"
-    local dotfiles_capes_dir="$HOME/.config/mousescape/capes"
+  local mousecape_app="/Applications/Mousecape.app"
+  local mousecape_capes_dir="$HOME/Library/Application Support/Mousecape/capes"
+  local dotfiles_capes_dir="$HOME/.config/mousescape/capes"
 
-    if [[ -d "$mousecape_app" ]]; then
-      print_success "Mousecape already installed"
+  if [[ -d "$mousecape_app" ]]; then
+    print_success "Mousecape already installed"
 
-      print_step "Removing quarantine attribute..."
-      xattr -d com.apple.quarantine "$mousecape_app" 2>/dev/null || print_warning "Quarantine attribute already removed or not present"
+    print_step "Removing quarantine attribute..."
+    xattr -d com.apple.quarantine "$mousecape_app" 2>/dev/null || print_warning "Quarantine attribute already removed or not present"
 
-      # Create the Mousecape support directory if it doesn't exist
-      mkdir -p "$(dirname "$mousecape_capes_dir")"
+    # Create the Mousecape support directory if it doesn't exist
+    mkdir -p "$(dirname "$mousecape_capes_dir")"
 
-      # Setup symlink for capes directory
-      if [[ -L "$mousecape_capes_dir" ]]; then
-        print_success "Mousecape capes symlink already configured"
-      elif [[ -d "$mousecape_capes_dir" ]]; then
-        print_warning "Mousecape capes directory exists but is not a symlink"
-        print_step "Backing up existing capes directory..."
-        mv "$mousecape_capes_dir" "${mousecape_capes_dir}.backup"
-        print_step "Creating symlink to dotfiles capes directory..."
-        ln -s "$dotfiles_capes_dir" "$mousecape_capes_dir"
-        print_success "Symlink created (backup saved to ${mousecape_capes_dir}.backup)"
-      else
-        print_step "Creating symlink to dotfiles capes directory..."
-        ln -s "$dotfiles_capes_dir" "$mousecape_capes_dir"
-        print_success "Symlink created"
-      fi
+    # Setup symlink for capes directory
+    if [[ -L "$mousecape_capes_dir" ]]; then
+      print_success "Mousecape capes symlink already configured"
+    elif [[ -d "$mousecape_capes_dir" ]]; then
+      print_warning "Mousecape capes directory exists but is not a symlink"
+      print_step "Backing up existing capes directory..."
+      mv "$mousecape_capes_dir" "${mousecape_capes_dir}.backup"
+      print_step "Creating symlink to dotfiles capes directory..."
+      ln -s "$dotfiles_capes_dir" "$mousecape_capes_dir"
+      print_success "Symlink created (backup saved to ${mousecape_capes_dir}.backup)"
+    else
+      print_step "Creating symlink to dotfiles capes directory..."
+      ln -s "$dotfiles_capes_dir" "$mousecape_capes_dir"
+      print_success "Symlink created"
+    fi
 
-      add_manual_step "Configure Mousecape:
+    add_manual_step "Configure Mousecape:
     1. Open Mousecape
     2. Open Settings > General: Install 'Mousescape Helper' and enable 'Apply Last Cape on Launch'
     3. Save settings
     4. Select the Banana cursor to apply it"
-    else
-      print_warning "Mousecape not installed"
-      add_manual_step "Install Mousecape from: https://github.com/sdmj76/Mousecape-swiftUI/releases/latest
+  else
+    print_warning "Mousecape not installed"
+    add_manual_step "Install Mousecape from: https://github.com/sdmj76/Mousecape-swiftUI/releases/latest
     Then run this script again to configure the capes symlink"
-    fi
-    ;;
-
-  ubuntu | arch)
-    local cursor_installed=false
-
-    if [[ -d "/usr/share/icons/Banana" ]]; then
-      print_success "Banana cursor already installed"
-      cursor_installed=true
-    else
-      print_step "Downloading Banana cursor..."
-      local tmp_dir=$(mktemp -d)
-      cd "$tmp_dir"
-      wget -q https://github.com/ful1e5/banana-cursor/releases/download/v2.0.0/Banana.tar.xz
-
-      print_step "Extracting cursor files..."
-      tar -xf Banana.tar.xz
-
-      print_step "Installing cursor..."
-      sudo mv Banana /usr/share/icons/
-
-      cd ~
-      rm -rf "$tmp_dir"
-      print_success "Banana cursor installed"
-    fi
-
-    # Install gnome-tweaks for cursor configuration
-    if [[ "$OS" == "ubuntu" ]]; then
-      if ! command_exists gnome-tweaks; then
-        print_step "Installing GNOME Tweaks..."
-        sudo apt update
-        sudo apt install -y gnome-tweaks
-        print_success "GNOME Tweaks installed"
-      else
-        print_success "GNOME Tweaks already installed"
-      fi
-
-      add_manual_step "Configure Banana cursor:
-    1. Open GNOME Tweaks: gnome-tweaks
-    2. Go to: Appearance > Cursor > Select 'Banana'
-    3. (Optional) In Settings app: Accessibility > Cursor Size > Large for a bigger banana"
-    elif [[ "$OS" == "arch" ]]; then
-      if ! command_exists gnome-tweaks; then
-        print_step "Installing GNOME Tweaks..."
-        sudo pacman -S --needed --noconfirm gnome-tweaks
-        print_success "GNOME Tweaks installed"
-      else
-        print_success "GNOME Tweaks already installed"
-      fi
-
-      add_manual_step "Configure Banana cursor:
-    1. Open GNOME Tweaks: gnome-tweaks
-    2. Go to: Appearance > Cursor > Select 'Banana'
-    3. (Optional) In Settings app: Accessibility > Cursor Size > Large for a bigger banana"
-    fi
-    ;;
-  esac
+  fi
 }
 
 # ============================================================================
@@ -729,10 +500,7 @@ install_banana_cursor() {
 finalize_setup() {
   print_header "Finalizing Setup"
 
-  print_step "Reloading shell configuration..."
-  (source ~/.zshrc) 2>/dev/null || print_warning "Some shell config couldn't be loaded in script context"
-
-  print_success "Shell configuration updated and loaded"
+  print_success "Shell configuration will be active in new terminal sessions"
 }
 
 # ============================================================================
@@ -778,4 +546,3 @@ main() {
 
 # Run main function
 main
-
