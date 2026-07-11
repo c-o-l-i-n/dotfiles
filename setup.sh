@@ -124,6 +124,7 @@ install_packages() {
   )
 
   local brew_casks=(
+    docker-desktop
     font-caskaydia-cove-nerd-font
     font-sf-pro
     ghostty
