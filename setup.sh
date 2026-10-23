@@ -27,6 +27,9 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
+# $0 is the function name inside functions, so resolve the script dir here
+SCRIPT_DIR="${0:A:h}"
+
 # Manual steps tracking
 MANUAL_STEPS=()
 
@@ -75,6 +78,27 @@ check_os() {
 check_os
 
 # ============================================================================
+# Ask for the sudo password once, up front, only if a later step needs it
+# ============================================================================
+
+acquire_sudo_if_needed() {
+  if command_exists brew &&
+    brew bundle check --no-upgrade --file="$SCRIPT_DIR/Brewfile" &>/dev/null &&
+    [[ -f "$HOME/Library/LaunchAgents/pm2.$(whoami).plist" ]] &&
+    ! yabai_needs_patch &&
+    yabai_sudoers_ok; then
+    return
+  fi
+
+  print_step "Some steps need administrator access. Enter your password once now:"
+  sudo -v
+  while kill -0 $$ 2>/dev/null; do
+    sudo -n true
+    sleep 50
+  done 2>/dev/null &
+}
+
+# ============================================================================
 # Package Manager Setup
 # ============================================================================
 
@@ -97,71 +121,15 @@ install_package_manager() {
 install_packages() {
   print_header "Installing Packages"
 
-  local brew_packages=(
-    borders
-    btop
-    cmatrix
-    cowsay
-    eza
-    fastfetch
-    fd
-    ffmpeg
-    fzf
-    gh
-    git
-    gnupg
-    imagemagick
-    lazygit
-    mise
-    neovim
-    ripgrep
-    shfmt
-    asmvik/formulae/skhd
-    starship
-    stow
-    asmvik/formulae/yabai
-    zoxide
-  )
-
-  local brew_casks=(
-    docker-desktop
-    font-caskaydia-cove-nerd-font
-    font-sf-pro
-    ghostty
-    localsend
-  )
-
-  # Run Homebrew non-interactively so it doesn't pause for "Do you want to
-  # proceed with the installation? [Y/n]" or other confirmation prompts.
-  export HOMEBREW_NO_ASK=1
   export HOMEBREW_NO_AUTO_UPDATE=1
   export HOMEBREW_NO_ENV_HINTS=1
 
-  # borders is distributed via the FelixKratz tap; skhd via asmvik/formulae
-  print_step "Tapping required formulae..."
-  brew tap FelixKratz/formulae
-  brew tap asmvik/formulae
-
-  print_step "Installing Homebrew packages..."
-  for package in "${brew_packages[@]}"; do
-    local pkg_name="${package##*/}"
-    if brew list "$pkg_name" &>/dev/null; then
-      echo "  → $package already installed"
-    else
-      brew install "$package"
-    fi
-  done
-
-  print_step "Installing Homebrew casks..."
-  for cask in "${brew_casks[@]}"; do
-    if brew list --cask "$cask" &>/dev/null; then
-      echo "  → $cask already installed"
-    else
-      brew install --cask "$cask"
-    fi
-  done
-
-  print_success "All packages installed"
+  if brew bundle install --no-upgrade --file="$SCRIPT_DIR/Brewfile"; then
+    print_success "All packages installed"
+  else
+    print_warning "Some Brewfile entries failed to install"
+    add_manual_step "Sign in to the App Store if you haven't (mas needs it), then rerun: brew bundle install --file=\"$SCRIPT_DIR/Brewfile\""
+  fi
 }
 
 # ============================================================================
@@ -185,7 +153,23 @@ setup_dotfiles() {
   fi
 
   print_step "Stowing dotfiles..."
-  stow --restow .
+  # Without a real ~/.config, stow links the whole directory into this repo and
+  # every app's credentials and state land in the working tree
+  mkdir -p "$HOME/.config"
+  local diff_before=$(git diff | shasum)
+  stow --adopt --restow .
+
+  if [[ "$(git diff | shasum)" != "$diff_before" ]]; then
+    print_warning "Some live config files had drifted from the repo"
+    add_manual_step "Review drifted config with: git -C ~/dotfiles diff
+    Commit what you want to keep, then discard the rest with: git -C ~/dotfiles checkout ."
+  fi
+
+  local signing_key=$(git config --global user.signingkey)
+  if ! gpg --list-secret-keys "$signing_key" &>/dev/null; then
+    print_warning "GPG signing key $signing_key not found"
+    add_manual_step "Import GPG key $signing_key (git commits are signed and will fail until it is): gpg --import <key file>"
+  fi
 
   print_success "Dotfiles configured"
 }
@@ -214,13 +198,6 @@ apply_wallpaper() {
 
 setup_uebersicht() {
   print_header "Übersicht Setup"
-
-  if [[ -d "/Applications/Übersicht.app" ]]; then
-    print_success "Übersicht already installed"
-  else
-    print_warning "Übersicht not installed"
-    add_manual_step "Install Übersicht from: https://tracesof.net/uebersicht/"
-  fi
 
   # Install simple-bar widget
   local simplebar_dir="$HOME/Library/Application Support/Übersicht/widgets/simple-bar"
@@ -255,22 +232,11 @@ create_dev_directory() {
   fi
 }
 
-# ============================================================================
-# Setup Node.js with mise
-# ============================================================================
-
-setup_nodejs() {
-  print_step "Setting up Node.js..."
-
-  if mise which node &>/dev/null; then
-    print_success "Node.js already configured with mise"
-  else
-    mise use --global node@lts
-    print_success "Node.js LTS installed via mise"
-  fi
-
-  # Reload mise
+setup_mise_tools() {
+  print_step "Installing mise tools..."
+  mise install
   eval "$(mise activate zsh)"
+  print_success "mise tools installed"
 }
 
 # ============================================================================
@@ -375,6 +341,43 @@ setup_simplebar_server() {
 }
 
 # ============================================================================
+# Patch yabai for macOS 27
+# ============================================================================
+
+yabai_needs_patch() {
+  command_exists yabai &&
+    [[ "$(sw_vers -productVersion | cut -d. -f1)" == 27 ]] &&
+    [[ "$(yabai --version)" == yabai-v7.1.25 ]] &&
+    ! grep -qa "Golden Gate" "$(brew --prefix asmvik/formulae/yabai)/bin/yabai"
+}
+
+patch_yabai() {
+  print_header "yabai macOS 27 Patch"
+
+  if ! yabai_needs_patch; then
+    print_success "No patch needed ($(yabai --version))"
+    return
+  fi
+
+  local yabai_bin="$(brew --prefix asmvik/formulae/yabai)/bin/yabai"
+
+  print_step "Building patched yabai..."
+  local build_dir=$(mktemp -d)
+  git clone --quiet https://github.com/asmvik/yabai.git "$build_dir"
+  git -C "$build_dir" checkout --quiet dd845723416f5fe92af49fad5ebab00369e07edd
+  git -C "$build_dir" apply "$SCRIPT_DIR/patches/yabai-macos27.patch"
+  make -C "$build_dir" -j1 install
+  codesign -fs - "$build_dir/bin/yabai"
+  install -m 555 "$build_dir/bin/yabai" "$yabai_bin"
+  rm -rf "$build_dir"
+
+  brew pin asmvik/formulae/yabai
+  print_success "Patched yabai installed and pinned"
+  add_manual_step "yabai was rebuilt, so macOS dropped its permission to control the computer.
+    In System Settings > Privacy & Security > Device Control and Data Access, remove old yabai rows and add $(realpath "$yabai_bin")"
+}
+
+# ============================================================================
 # Yabai Configuration
 # ============================================================================
 
@@ -398,18 +401,32 @@ setup_yabai() {
   # Configure passwordless sudo for yabai scripting addition.
   # The sha256 hash is tied to the current yabai binary, so re-running after
   # a yabai upgrade will update the entry automatically.
+  if yabai_sudoers_ok; then
+    print_success "yabai sudoers entry already up to date"
+    return
+  fi
+
   print_step "Configuring yabai sudoers entry..."
   local yabai_path=$(which yabai)
   local yabai_sha=$(shasum -a 256 "$yabai_path" | cut -d " " -f 1)
   local sudoers_entry="$(whoami) ALL=(root) NOPASSWD: sha256:${yabai_sha} ${yabai_path} --load-sa"
   local sudoers_file="/private/etc/sudoers.d/yabai"
+  local sudoers_tmp=$(mktemp)
 
-  if sudo grep -qF "$sudoers_entry" "$sudoers_file" 2>/dev/null; then
-    print_success "yabai sudoers entry already up to date"
-  else
-    echo "$sudoers_entry" | sudo tee "$sudoers_file" >/dev/null
-    print_success "yabai sudoers entry configured"
-  fi
+  echo "$sudoers_entry" >"$sudoers_tmp"
+  sudo visudo -cqf "$sudoers_tmp"
+  sudo install -m 0440 -o root -g wheel "$sudoers_tmp" "$sudoers_file"
+  rm "$sudoers_tmp"
+  print_success "yabai sudoers entry configured"
+}
+
+# sudo -n prints this instead of prompting when no NOPASSWD rule matches.
+# yabai's own exit code can't tell us, since --load-sa exits 1 on macOS 27
+# even when the load works.
+yabai_sudoers_ok() {
+  command_exists yabai &&
+    [[ "$(stat -f %Lp /private/etc/sudoers.d/yabai 2>/dev/null)" == 440 ]] &&
+    ! LC_ALL=C sudo -n "$(command -v yabai)" --load-sa 2>&1 | grep -q "a password is required"
 }
 
 # ============================================================================
@@ -419,31 +436,49 @@ setup_yabai() {
 start_window_management_services() {
   print_header "Window Management Services (yabai + skhd)"
 
-  print_step "Starting yabai service..."
+  print_step "Starting yabai and skhd..."
   yabai --start-service 2>/dev/null || true
-
-  print_step "Starting skhd service..."
   skhd --start-service 2>/dev/null || true
 
+  if wait_for_window_management; then
+    print_success "yabai and skhd are running"
+    return
+  fi
+
+  # Both abort at launch without this permission, so not running means not granted
+  open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
   echo ""
-  echo -e "${YELLOW}${BOLD}Action Required: Accessibility Permissions${RESET}"
-  echo -e "${YELLOW}yabai and skhd need Accessibility access to manage windows and hotkeys.${RESET}"
+  echo -e "${YELLOW}${BOLD}Action Required: Device Control and Data Access${RESET}"
+  echo -e "${YELLOW}yabai and skhd need this permission to manage windows and hotkeys.${RESET}"
   echo ""
   echo -e "${BLUE}Steps:${RESET}"
-  echo -e "  1. Open ${BOLD}System Settings > Privacy & Security > Accessibility${RESET}"
-  echo -e "  2. Enable both ${BOLD}yabai${RESET} and ${BOLD}skhd${RESET}"
-  echo -e "  3. Press ${BOLD}Enter${RESET} to restart the services"
+  echo -e "  1. In ${BOLD}System Settings > Privacy & Security > Device Control and Data Access${RESET} (now open)"
+  echo -e "     enable both ${BOLD}yabai${RESET} and ${BOLD}skhd${RESET}"
+  echo -e "  2. Press ${BOLD}Enter${RESET} to restart the services"
   echo ""
-  read -r "?Press Enter after granting Accessibility permissions... "
+  read -r "?Press Enter after granting access... "
   echo ""
 
-  print_step "Restarting yabai..."
   yabai --restart-service 2>/dev/null || true
-
-  print_step "Restarting skhd..."
   skhd --restart-service 2>/dev/null || true
 
-  print_success "yabai and skhd services running"
+  if wait_for_window_management; then
+    print_success "yabai and skhd are running"
+  else
+    print_warning "yabai or skhd still isn't running"
+    add_manual_step "Check System Settings > Privacy & Security > Device Control and Data Access for yabai and skhd, then run: yabai --restart-service; skhd --restart-service"
+  fi
+}
+
+wait_for_window_management() {
+  local tries
+  for tries in {1..5}; do
+    if yabai -m query --spaces &>/dev/null && pgrep -x skhd >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 # ============================================================================
@@ -460,8 +495,7 @@ install_banana_cursor() {
   if [[ -d "$mousecape_app" ]]; then
     print_success "Mousecape already installed"
 
-    print_step "Removing quarantine attribute..."
-    xattr -d com.apple.quarantine "$mousecape_app" 2>/dev/null || print_warning "Quarantine attribute already removed or not present"
+    xattr -d com.apple.quarantine "$mousecape_app" 2>/dev/null || true
 
     # Create the Mousecape support directory if it doesn't exist
     mkdir -p "$(dirname "$mousecape_capes_dir")"
@@ -482,16 +516,50 @@ install_banana_cursor() {
       print_success "Symlink created"
     fi
 
-    add_manual_step "Configure Mousecape:
-    1. Open Mousecape
-    2. Open Settings > General: Install 'Mousescape Helper' and enable 'Apply Last Cape on Launch'
-    3. Save settings
-    4. Select the Banana cursor to apply it"
+    local cape="$dotfiles_capes_dir/local.Colin.Banana.cape"
+    local mousecloak="$mousecape_app/Contents/MacOS/mousecloak"
+
+    defaults write com.sdmj76.Mousecape applyLastCapeOnLaunch -bool true
+    defaults write com.sdmj76.Mousecape lastAppliedCapeIdentifier local.Colin.Banana
+
+    print_step "Applying Banana cursor..."
+    "$mousecloak" --apply "$cape" >/dev/null
+    if cape_is_applied "$mousecloak" "$cape"; then
+      print_success "Banana cursor applied"
+    else
+      print_warning "Banana cursor did not apply"
+      add_manual_step "Open Mousecape and select the Banana cursor"
+    fi
+
+    if launchctl list com.sdmj76.mousecloakhelper &>/dev/null; then
+      print_success "Mousecape helper running"
+    else
+      add_manual_step "Open Mousecape > Settings > General and install Mousecape Helper, so the Banana cursor comes back after you log in"
+    fi
   else
     print_warning "Mousecape not installed"
     add_manual_step "Install Mousecape from: https://github.com/sdmj76/Mousecape-swiftUI/releases/latest
     Then run this script again to configure the capes symlink"
   fi
+}
+
+# The dump names its cursors generically, so compare each cursor's frame count,
+# hotspot, and size against the cape instead of its name
+cape_is_applied() {
+  local mousecloak=$1 cape=$2
+  local dump_dir=$(mktemp -d)
+  "$mousecloak" --dump "$dump_dir/current.cape" >/dev/null
+  python3 -I - "$cape" "$dump_dir/current.cape" <<'EOF'
+import plistlib, sys
+def metrics(path):
+    cursors = plistlib.load(open(path, "rb"))["Cursors"]
+    return {name: [c.get(k) for k in ("FrameCount", "HotSpotX", "HotSpotY", "PointsWide", "PointsHigh")] for name, c in cursors.items()}
+cape, live = metrics(sys.argv[1]), metrics(sys.argv[2])
+sys.exit(0 if all(live.get(name) == m for name, m in cape.items()) else 1)
+EOF
+  local result=$?
+  rm -rf "$dump_dir"
+  return $result
 }
 
 # ============================================================================
@@ -501,7 +569,7 @@ install_banana_cursor() {
 finalize_setup() {
   print_header "Finalizing Setup"
 
-  print_success "Shell configuration will be active in new terminal sessions"
+  print_success "Run exec zsh to load the new shell configuration in this terminal"
 }
 
 # ============================================================================
@@ -511,14 +579,16 @@ finalize_setup() {
 main() {
   print_header "Setup Starting..."
 
+  acquire_sudo_if_needed
   install_package_manager
   install_packages
   setup_dotfiles
   apply_wallpaper
   setup_uebersicht
   create_dev_directory
-  setup_nodejs
+  setup_mise_tools
   setup_simplebar_server
+  patch_yabai
   setup_yabai
   start_window_management_services
   install_banana_cursor
@@ -531,14 +601,14 @@ main() {
   print_header "Setup Complete!"
 
   if [[ ${#MANUAL_STEPS[@]} -gt 0 ]]; then
-    echo -e "${YELLOW}${BOLD}Manual Steps Required:${RESET}\n"
+    echo -e "${YELLOW}${BOLD}Manual Steps:${RESET}\n"
     local i=1
     for step in "${MANUAL_STEPS[@]}"; do
       echo -e "${MAGENTA}${i}.${RESET} ${step}\n"
       ((i++))
     done
   else
-    print_success "No manual steps required!"
+    print_success "No manual steps!"
     echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${RESET}"
     printf "${CYAN}${BOLD}║  %-62s║${RESET}\n" "Your system is ready!"
     echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${RESET}\n"
