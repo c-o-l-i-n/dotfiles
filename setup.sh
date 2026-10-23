@@ -344,18 +344,55 @@ setup_simplebar_server() {
 # Patch yabai for macOS 27
 # ============================================================================
 
-yabai_needs_patch() {
+yabai_patch_applies() {
   command_exists yabai &&
     [[ "$(sw_vers -productVersion | cut -d. -f1)" == 27 ]] &&
-    [[ "$(yabai --version)" == yabai-v7.1.25 ]] &&
-    ! grep -qa "Golden Gate" "$(brew --prefix asmvik/formulae/yabai)/bin/yabai"
+    [[ "$(yabai --version)" == yabai-v7.1.25 ]]
+}
+
+yabai_is_patched() {
+  grep -qa "Golden Gate" "$(brew --prefix asmvik/formulae/yabai)/bin/yabai"
+}
+
+yabai_needs_patch() {
+  yabai_patch_applies && ! yabai_is_patched
+}
+
+# A release supports macOS 27 once its payload accepts major version 27,
+# which is the check the local patch adds
+check_yabai_upstream() {
+  local tag
+  tag=$(curl -fsS --max-time 5 https://api.github.com/repos/asmvik/yabai/releases/latest 2>/dev/null |
+    python3 -I -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null) || return 0
+
+  if curl -fsS --max-time 5 "https://raw.githubusercontent.com/asmvik/yabai/$tag/src/osax/payload.m" 2>/dev/null |
+    grep -qE 'majorVersion (==|>=) 27'; then
+    print_success "yabai $tag supports macOS 27"
+    add_manual_step "yabai $tag supports macOS 27, so the local patch is no longer needed:
+    brew unpin asmvik/formulae/yabai && brew upgrade asmvik/formulae/yabai
+    Then rerun setup.sh, and remove patches/ and the patch step from the dotfiles"
+  fi
 }
 
 patch_yabai() {
   print_header "yabai macOS 27 Patch"
 
-  if ! yabai_needs_patch; then
+  if ! yabai_patch_applies; then
     print_success "No patch needed ($(yabai --version))"
+    return
+  fi
+
+  check_yabai_upstream
+
+  if ! python3 -I "$SCRIPT_DIR/patches/scan_dock.py" "$SCRIPT_DIR/patches/yabai-macos27.patch"; then
+    print_warning "The yabai patch no longer matches this Mac's Dock"
+    add_manual_step "A macOS update moved the Dock code the yabai patch hooks, so yabai can't switch spaces.
+    Look for an updated patch: https://github.com/asmvik/yabai/issues/2832"
+    return
+  fi
+
+  if yabai_is_patched; then
+    print_success "yabai already patched"
     return
   fi
 

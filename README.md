@@ -29,7 +29,7 @@ The setup script:
 - Installs node, pnpm, bun, and python with mise (`.config/mise/config.toml`)
 - Installs Übersicht, simple-bar, and simple-bar-server
 - Sets up yabai, skhd, and the yabai scripting addition's sudoers entry
-- On macOS 27, rebuilds yabai 7.1.25 with `patches/yabai-macos27.patch` so space switching works, and pins it in Homebrew. Source: https://svenfrank.eu/posts/yabai-macos-27-scripting-addition/
+- On macOS 27, rebuilds yabai 7.1.25 with `patches/yabai-macos27.patch` so space switching works, and pins it in Homebrew. Each run checks that the patch still matches the Dock, and says so at the end once a yabai release supports macOS 27 on its own. Source: https://svenfrank.eu/posts/yabai-macos-27-scripting-addition/
 - Configures Mousecape for the Banana cursor
 - Applies the desktop wallpaper
 
