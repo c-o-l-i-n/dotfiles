@@ -473,9 +473,10 @@ yabai_sudoers_ok() {
 start_window_management_services() {
   print_header "Window Management Services (yabai + skhd)"
 
-  print_step "Starting yabai and skhd..."
+  print_step "Starting yabai, skhd, and borders..."
   yabai --start-service 2>/dev/null || true
   skhd --start-service 2>/dev/null || true
+  brew services start felixkratz/formulae/borders >/dev/null 2>&1 || true
 
   if wait_for_window_management; then
     print_success "yabai and skhd are running"
