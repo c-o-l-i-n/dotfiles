@@ -9,8 +9,7 @@ setopt auto_menu
 setopt complete_in_word
 setopt always_to_end
 
-# Don't match hidden files unless explicitly specified
-setopt glob_dots  # You'll need to handle this differently
+setopt glob_dots
 
 # History search with arrow keys
 autoload -U up-line-or-beginning-search
@@ -28,8 +27,4 @@ setopt list_types
 
 # Add trailing slash for symlinked directories
 setopt mark_dirs
-
-# Enable completion system
-autoload -Uz compinit
-compinit
 

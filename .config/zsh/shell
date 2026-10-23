@@ -14,6 +14,8 @@ else
   compinit -C
 fi
 
+typeset -U path
+
 # Ensure command hashing is off for mise
 setopt NO_HASH_CMDS
 
