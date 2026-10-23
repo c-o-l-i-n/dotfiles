@@ -1,0 +1,12 @@
+[user]
+	name = Colin Williams
+	email = 40863449+c-o-l-i-n@users.noreply.github.com
+	signingkey = D271F25F18E7D4AE
+[commit]
+	gpgsign = true
+[tag]
+	gpgSign = true
+[init]
+	defaultBranch = main
+[core]
+	autocrlf = input

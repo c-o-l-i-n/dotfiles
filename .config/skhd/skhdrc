@@ -1,7 +1,6 @@
 # open apps
 alt - return : open -na ghostty
 alt + shift - b : open -a "/Applications/Brave Browser.app"
-alt + shift - a : open -a "/Users/colin/Applications/Brave\ Browser\ Apps.localized/Claude.app"
 
 
 
