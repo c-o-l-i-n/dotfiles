@@ -1,8 +1,14 @@
 .DS_Store
 
-/.config/raycast
-/.config/gh
-/.config/mise
-
-/.config/zsh/.zcompdump
-
+/.config/*
+!/.config/btop/
+!/.config/fastfetch/
+!/.config/ghostty/
+!/.config/git/
+!/.config/mise/
+!/.config/mousescape/
+!/.config/nvim/
+!/.config/skhd/
+!/.config/starship.toml
+!/.config/yabai/
+!/.config/zsh/
