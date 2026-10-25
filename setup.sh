@@ -84,7 +84,6 @@ check_os
 acquire_sudo_if_needed() {
   if command_exists brew &&
     brew bundle check --no-upgrade --file="$SCRIPT_DIR/Brewfile" &>/dev/null &&
-    [[ -f "$HOME/Library/LaunchAgents/pm2.$(whoami).plist" ]] &&
     ! yabai_needs_patch &&
     yabai_sudoers_ok; then
     return
@@ -261,81 +260,43 @@ setup_simplebar_server() {
   print_step "Installing server dependencies..."
   npm install
 
-  if command_exists pm2; then
-    print_success "pm2 already installed"
-  else
-    print_step "Installing pm2..."
-    npm install pm2 -g
+  local legacy_pm2_plist="$HOME/Library/LaunchAgents/pm2.$(whoami).plist"
+  if [[ -f "$legacy_pm2_plist" ]]; then
+    launchctl bootout "gui/$UID" "$legacy_pm2_plist" 2>/dev/null || true
+    rm "$legacy_pm2_plist"
   fi
 
   print_step "Starting simple-bar-server..."
-  pm2 delete simple-bar-server 2>/dev/null || true
-  pm2 startOrRestart ecosystem.config.cjs
-  pm2 save
-
-  print_success "simple-bar-server configured"
-
-  # Configure pm2 startup automatically
-  print_step "Checking pm2 startup configuration..."
-
-  # Check if pm2 startup is already configured by looking for the plist file
-  local pm2_plist="$HOME/Library/LaunchAgents/pm2.$(whoami).plist"
-
-  if [[ ! -f "$pm2_plist" ]]; then
-    # Need to run pm2 startup command
-    local startup_cmd=$(pm2 startup 2>&1 | grep -E "sudo env PATH" | head -1)
-
-    if [[ -n "$startup_cmd" ]]; then
-      echo ""
-      echo -e "${YELLOW}${BOLD}pm2 needs to be configured to start on boot.${RESET}"
-      echo -e "${YELLOW}This requires running a command with sudo privileges.${RESET}"
-      echo ""
-      echo -e "${BLUE}The command will:${RESET}"
-      echo -e "  • Configure pm2 to automatically start simple-bar-server on login"
-      echo -e "  • Create necessary system files for startup management"
-      echo ""
-      echo -ne "${BOLD}Would you like to run this command now? [y/N]: ${RESET}"
-      read -r response
-
-      if [[ "$response" =~ ^[Yy]$ ]]; then
-        echo ""
-        echo -e "${CYAN}Running pm2 startup command...${RESET}"
-        echo -e "${CYAN}(You'll be prompted for your password to allow pm2 system configuration)${RESET}"
-        echo ""
-        eval "$startup_cmd"
-        print_success "pm2 startup configured"
-      else
-        print_warning "Skipping pm2 startup configuration"
-        add_manual_step "Configure pm2 to start on boot by running: pm2 startup
-    Then run the sudo command it provides"
-      fi
-    fi
-  else
-    print_success "pm2 startup already configured"
-  fi
-
-  # Patch the plist to use the mise 'lts' symlink for Node instead of a
-  # hard-coded version number. This ensures pm2 keeps working after upgrading
-  # Node LTS (e.g. node/24.12.0 → node/lts).
-  if [[ -f "$pm2_plist" ]]; then
-    print_step "Patching pm2 plist to use Node LTS symlink..."
-    local mise_node_dir="$HOME/.local/share/mise/installs/node"
-
-    # Replace any hard-coded node version (e.g. /node/24.12.0/) with /node/lts/
-    # Uses an in-place sed substitution; the pattern matches a version-like string
-    # (digits, dots) sitting between /node/ and the next path component.
-    if sed -i '' "s|${mise_node_dir}/[0-9][^/]*/|${mise_node_dir}/lts/|g" "$pm2_plist"; then
-      print_success "pm2 plist patched to use Node LTS symlink"
-    else
-      print_warning "Could not patch pm2 plist — you may need to update it manually"
-      add_manual_step "Edit $pm2_plist and replace hard-coded node version paths (e.g. /node/24.12.0/) with /node/lts/"
-    fi
-
-    # Reload the LaunchAgent so the change takes effect immediately
-    launchctl unload "$pm2_plist" 2>/dev/null || true
-    launchctl load "$pm2_plist"
-    print_success "LaunchAgent reloaded"
-  fi
+  local label="simple-bar-server"
+  local plist="$HOME/Library/LaunchAgents/$label.plist"
+  cat >"$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$HOME/.local/share/mise/installs/node/lts/bin/node</string>
+    <string>index.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>$server_dir</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/$label.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/$label.err</string>
+</dict>
+</plist>
+EOF
+  launchctl bootout "gui/$UID/$label" 2>/dev/null || true
+  launchctl bootstrap "gui/$UID" "$plist"
+  print_success "simple-bar-server running under launchd"
 
   cd ~
 }
